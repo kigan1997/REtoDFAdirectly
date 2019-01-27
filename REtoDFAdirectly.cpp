@@ -1,9 +1,13 @@
+/*
+Created by Akash Banerjee and Subhojyoti Khastagir
+*/
 #include <bits/stdc++.h>
 using namespace std;
+#define M 10
+#define N 10
 
-int xyz;
-int pt = 0;
-
+int xyz; //used for numbering leaf nodes
+int pt = 0; //keep the count for no of states in dfa table
 
 typedef struct states {
 	int data;
@@ -18,15 +22,14 @@ typedef struct tree_node{
 	struct tree_node * left, * right;
 } TREE_NODE;
 
-
 int indexA(char numset[],int ip,char ch){
 	if(numset[ip]==ch)
 		return 1;
-	else return 0;
-	
+	else return 0;	
 }
 
 
+//display the tree in pre-order
 void display(TREE_NODE *t) {
 	if(t == NULL)return;
 	printf("(%c,%d), ", t->symbol,t->pos);
@@ -41,22 +44,21 @@ int priorityCheck(char a){
 
 void append(int arr[],int data){
 	int i = 0;
-	while(arr[i] != -1){
+	while(arr[i] != -1)
 		if(arr[i++] == data) return;
-	}
 	arr[i] = data;
 	sort(arr,arr+i+1);
 }
 
+//find prefix of a RE and return reverse of that prefix expression
 char* prefix(char* re){
 	stack<char> mystack;
 	int len = strlen(re),i,j = 0;
 	char ch, *outputStr = (char*)malloc(50 * sizeof(char));
-
 	for(i = len - 1; i >= 0; i--)
 	{
 		ch = re[i];
-		if((ch >= 'a' && ch <= 'z') || (ch == '#'))	
+		if((ch >= 'a' && ch <= 'z') || (ch == '#') || (ch == 'E') )	
 			outputStr[j++] = ch;
 		else if (ch == '('){
 			while(mystack.top() != ')'){
@@ -83,12 +85,12 @@ char* prefix(char* re){
 	return outputStr;
 }
 
+//construct tree
 TREE_NODE* createTree(char *re) {
 	stack<TREE_NODE*> treeStack;
 	char ch;
 	for( int i=0; i < strlen(re);i++) {
 		ch = re[i];
-		//printf("%c\n", ch);
 		if((ch >= 'a' && ch <= 'z') || ch == '#') {
 			TREE_NODE *node = (TREE_NODE*)malloc(sizeof(TREE_NODE));
 			node->symbol = ch;
@@ -100,6 +102,18 @@ TREE_NODE* createTree(char *re) {
 			node->firstpos[0] = xyz;
 			node->lastpos[0] = xyz;
 			node->pos = xyz--;
+			treeStack.push(node);
+		} else if(ch == 'E') {
+			TREE_NODE *node = (TREE_NODE*)malloc(sizeof(TREE_NODE));
+			node->symbol = ch;
+			node->nullable = false;
+			node->left = NULL;
+			node->right = NULL;
+			for(int k = 0; k < 10; k++)
+				node->firstpos[k] = node->lastpos[k] = -1;
+			node->firstpos[0] = -1;
+			node->lastpos[0] = -1;
+			node->pos = -1;
 			treeStack.push(node);
 		} else if(ch == '*') {
 			TREE_NODE *node = (TREE_NODE*)malloc(sizeof(TREE_NODE));
@@ -114,7 +128,6 @@ TREE_NODE* createTree(char *re) {
 				append(node->firstpos,node->left->firstpos[j]);
 			for(int j = 0; node->left->lastpos[j] != -1; j++)
 				append(node->lastpos,node->left->lastpos[j]);
-
 			node->pos = -1;
 			treeStack.push(node);
 		} else if(ch == '+') {
@@ -135,7 +148,6 @@ TREE_NODE* createTree(char *re) {
 				append(node->lastpos,node->left->lastpos[j]);
 			for(int j = 0; node->right->lastpos[j] != -1; j++)
 				append(node->lastpos,node->right->lastpos[j]);
-
 			node->pos = -1;
 			treeStack.push(node);
 		} else if(ch == '.') {
@@ -166,7 +178,6 @@ TREE_NODE* createTree(char *re) {
 				for(int j = 0; node->right->lastpos[j] != -1; j++)
 					append(node->lastpos,node->right->lastpos[j]);
 			}
-
 			node->pos = -1;
 			treeStack.push(node);
 		}
@@ -174,30 +185,27 @@ TREE_NODE* createTree(char *re) {
 	return treeStack.top();
 }
 
-
+//find followpos of a node
 void find_followpos(int followpos[][15],TREE_NODE* root){
 	if(root == NULL) return;
 	TREE_NODE * c = root;
 	int k = 0;
-	if(c->symbol == '.'){
-		for(int i = 0; c->left->lastpos[i] != -1; i++){
-			for(int j = 0; c->right->firstpos[j] != -1; j++){
+	if(c->symbol == '.')
+		for(int i = 0; c->left->lastpos[i] != -1; i++)
+			for(int j = 0; c->right->firstpos[j] != -1; j++)
 				append(followpos[c->left->lastpos[i]],c->right->firstpos[j]);
-			}
-		}
-	}
-	else if(c->symbol == '*'){
-		for(int i = 0; c->lastpos[i] != -1; i++){
-			for(int j = 0; c->firstpos[j] != -1; j++){
+	else if(c->symbol == '*')
+		for(int i = 0; c->lastpos[i] != -1; i++)
+			for(int j = 0; c->firstpos[j] != -1; j++)
 				append(followpos[c->lastpos[i]],c->firstpos[j]);
-			}
-		}
-	}
 
 	find_followpos(followpos,root->left);
 	find_followpos(followpos,root->right);
 }
 
+//check if two state are same or not
+//if same return 0
+//else return 1
 int same(int a[],int b[]){
 	int i=0,j=0;
 	while(a[i]!=-1 && b[i]!=-1){
@@ -209,12 +217,15 @@ int same(int a[],int b[]){
 	return 1;
 }
 
-int multiple_same(int states[][10],int a[]){
+
+//check if a state is new state or not 
+//if it is same with an existing state then return the index of that state
+//else return -1
+int multiple_same(int states[][N],int a[]){
 	int j;
 	for(j = 0; j <= pt; j++){
-		if(!same(states[j],a)) {
+		if(!same(states[j],a))
 			break;
-		}
 	}
 	if (j == pt + 1) 
 		return -1;
@@ -222,20 +233,18 @@ int multiple_same(int states[][10],int a[]){
 		return j;
 }
 
+
+//find move of a state with respect to a symbol
 void move(int states[],int followpos[][15],int temp[],char numset[], char ch){
 	int i=0,op,k;
 	for(i = 0; states[i] != -1; i++){
 		op = indexA(numset,states[i],ch);
 		k=0;
-		if(op){
-			while(followpos[states[i]][k] != -1){
+		if(op)
+			while(followpos[states[i]][k] != -1)
 				append(temp,followpos[states[i]][k++]);
-			}
-		}
 	}
-
 }
-
 
 //check a DFA state is final state or not
 int check_final(int states[],int final){
@@ -250,33 +259,38 @@ int check_final(int states[],int final){
 }
 
 
-
+//main
 int main(void){
 	char symbol[50],inStr[50], *inStr2, numset[25];
-	//printf("Enter symbol set:");
+	printf("Enter symbol set:");
 	//scanf("%s",symbol);
 	cin >> symbol;
-	//printf("Enter any Regular Expression:");
+	printf("Enter any Regular Expression:");
 	// scanf("%s",inStr); 
 	cin >> inStr;
+
+	//insert '.#' at the end of input string
 	int k = strlen(inStr);
 	inStr[k++] = '.';
 	inStr[k++] = '#';
 	inStr[k] = '\0';
-	printf("%s\n",inStr);
+	printf("\nInput RE:%s\n",inStr);
 
 	for(int i = 0,k = 0; i < strlen(inStr); i++)
 		if((inStr[i] >= 'a' && inStr[i] <= 'z') || inStr[i] == '#')
-			numset[k++] = inStr[i];/*cout<< k<<" ";}*/
+			numset[k++] = inStr[i];
 	numset[k] = '\0';
-	printf("%s\n",numset);
-	//cout << k <<endl;
+	
+
+	//for numbering of leaf nodes
 	xyz = strlen(numset) - 1;
-	//cout << xyz <<endl;
 
+	//find prefix expression of string
 	inStr2 = prefix(inStr);
-	printf("%s\n", inStr2);
+	printf("Prefix of RE:%s\n", inStr2);
 
+
+	//generate the tree 
 	TREE_NODE *root = createTree(inStr2);
 	printf("\nTree: ");
 	display(root);
@@ -288,6 +302,8 @@ int main(void){
 		for(int j = 0; j < 15; j++)
 			followpos[i][j] = -1;
 
+
+	//fine followpos
 	find_followpos(followpos,root);
 
 	printf("\nThe followpos table is as follows:\n");
@@ -297,9 +313,9 @@ int main(void){
 		printf("end\n");
 	}
 
-	int states[10][10],dfa[10][10],temp[10];
-	for(int i = 0; i < 10; i++)
-		for(int j = 0; j < 10; j++)
+	int states[M][N],dfa[M][N],temp[N];
+	for(int i = 0; i < M; i++)
+		for(int j = 0; j < N; j++)
 			states[i][j] = dfa[i][j] = -1;
 
 	memset(temp, -1, sizeof(temp));
